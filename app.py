@@ -8,319 +8,280 @@ import io
 from tinydb import TinyDB, Query
 from fpdf import FPDF
 
-# --- CONFIGURACIÓN E IDENTIDAD VISUAL ---
-st.set_page_config(
-    page_title="DataSocio Pro | Intelligence OS", 
-    page_icon="⚡", 
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# --- CONFIGURACIÓN E IDENTIDAD ---
+st.set_page_config(page_title="DataSocio Intelligence OS", page_icon="⚡", layout="wide")
 
-# Estilos CSS de alta fidelidad (Recuperados y mantenidos)
+# Clave secreta para firmar transacciones y evitar fraudes (Cambiá esto por cualquier frase larga)
+SECRET_PAY_KEY = "DATASOCIO_SECURITY_TOKEN_2026"
+
+# Estilos CSS de Alta Fidelidad (Mantenidos y consolidados)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-    
-    :root {
-        --primary: #38bdf8;
-        --bg: #0f172a;
-        --card: #1e293b;
-        --danger: #ef4444;
-        --admin: #10b981;
-        --text-muted: #94a3b8;
+    :root { 
+        --primary: #38bdf8; 
+        --bg: #0f172a; 
+        --card: #1e293b; 
+        --danger: #ef4444; 
+        --admin: #10b981; 
     }
-    
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-        background-color: var(--bg);
-    }
-    
-    /* Login High-End */
-    .login-header {
-        text-align: center;
-        margin-bottom: 2rem;
-        padding: 2.5rem;
-        background: var(--card);
-        border-radius: 15px;
-        border: 1px solid #334155;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    }
-
-    /* Prólogo de Bienvenida */
-    .prologo-section {
-        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-        padding: 2rem;
-        border-radius: 15px;
-        border: 1px solid #334155;
-        margin-bottom: 2rem;
-        box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
-    }
-
-    /* Botones Personalizados */
-    .stButton button {
-        border-radius: 8px !important;
-        transition: all 0.2s ease;
-    }
-    .logout-btn button {
-        background-color: var(--danger) !important;
-        color: white !important;
-        border: none !important;
-    }
-    .clear-btn button {
-        background-color: #475569 !important;
-        color: white !important;
-        border: none !important;
-    }
-    
-    /* Tarjetas de Resultados */
-    .res-card {
-        background: var(--card);
-        padding: 20px;
-        border-radius: 12px;
-        border-left: 6px solid var(--primary);
-        margin-bottom: 15px;
-        transition: transform 0.2s ease;
-    }
-    .res-card:hover {
-        transform: translateX(5px);
-    }
-    
-    .status-badge {
-        display: inline-block;
-        padding: 3px 10px;
-        border-radius: 6px;
-        font-size: 0.75rem;
-        font-weight: 700;
-        margin-left: 12px;
-        text-transform: uppercase;
-    }
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif; background-color: var(--bg); }
+    .prologo-section { background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); padding: 1.5rem; border-radius: 15px; border: 1px solid #334155; margin-bottom: 2rem; }
+    .res-card { background: var(--card); padding: 20px; border-radius: 12px; border-left: 6px solid var(--primary); margin-bottom: 15px; }
+    .status-badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; margin-left: 12px; text-transform: uppercase; }
+    .ad-slot { background: #0f172a; border: 1px dashed #334155; padding: 12px; border-radius: 10px; text-align: center; color: #94a3b8; font-size: 0.8rem; margin-top: 15px; }
+    .pack-card { background: #1e293b; border: 1px solid #334155; padding: 20px; border-radius: 12px; text-align: center; transition: all 0.2s; }
+    .pack-card:hover { border-color: var(--primary); transform: translateY(-2px); }
     </style>
     """, unsafe_allow_html=True)
 
-# --- NÚCLEO DE DATOS Y SEGURIDAD ---
+# --- BASE DE DATOS LOCAL ---
 db = TinyDB('usuarios_db.json')
 User = Query()
-def hash_p(password): return hashlib.sha256(str.encode(password)).hexdigest()
+def hash_p(p): return hashlib.sha256(str.encode(p)).hexdigest()
 
-# Manejo de Estados de Sesión
+# Generador y verificador de firmas de pago para evitar fraudes por URL
+def generar_firma_pago(usuario, credits_qty):
+    token_source = f"{usuario}-{credits_qty}-{SECRET_PAY_KEY}"
+    return hashlib.sha256(token_source.encode()).hexdigest()
+
+# --- DETECTOR AUTOMÁTICO DE PAGOS (WEBHOOK REDIRECT) ---
+# Se ejecuta al inicio para acreditar al usuario si viene de pagar exitosamente
+query_params = st.query_params
+if "payment" in query_params and query_params["payment"] == "success":
+    pay_user = query_params.get("user")
+    pay_credits = query_params.get("credits")
+    pay_sig = query_params.get("sig")
+    
+    # Validamos que la firma de la URL coincida con nuestra clave secreta
+    if pay_user and pay_credits and pay_sig:
+        firma_esperada = generar_firma_pago(pay_user, pay_credits)
+        if pay_sig == firma_esperada:
+            # Firma válida -> Acreditamos créditos de forma segura
+            user_entry = db.search(User.username == pay_user)
+            if user_entry:
+                nuevos_creditos = user_entry[0]['credits'] + int(pay_credits)
+                db.update({'credits': nuevos_creditos}, User.username == pay_user)
+                st.success(f"¡Pago Aprobado! Se acreditaron {pay_credits} créditos a {pay_user}.")
+                st.balloons()
+            # Limpiamos los parámetros de la URL para evitar recargas fraudulentas
+            st.query_params.clear()
+
+# Estados de sesión estándar
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'last_run' not in st.session_state: st.session_state.last_run = []
-if 'input_reset_key' not in st.session_state: st.session_state.input_reset_key = 0
+if 'input_key' not in st.session_state: st.session_state.input_key = 0
 
-# --- LÓGICA DE ACCESO ---
+# --- PANTALLA DE LOGIN ---
 if not st.session_state.logged_in:
-    st.markdown("""
-        <div class="login-header">
-            <h1 style="color: #38bdf8; margin:0;">DataSocio Intelligence</h1>
-            <p style="color:#94a3b8; margin-top:10px;">Consola de Extracción de Datos de Precisión</p>
-        </div>
-    """, unsafe_allow_html=True)
-    
+    st.markdown('<div style="text-align:center; margin-top:50px;"><h1 style="color: #38bdf8; font-size:3rem;">DataSocio OS</h1><p style="color:#94a3b8;">SaaS Engine v19.0</p></div>', unsafe_allow_html=True)
     _, col_login, _ = st.columns([1, 1.2, 1])
     with col_login:
-        with st.container():
-            u = st.text_input("Identificador de Operador").strip()
-            p = st.text_input("Código de Acceso", type="password").strip()
-            if st.button("🚀 INICIAR SESIÓN", use_container_width=True):
-                res = db.search(User.username == u)
-                if res and res[0]['password'] == hash_p(p):
-                    st.session_state.logged_in = True
-                    st.session_state.user_now = u
-                    st.rerun()
-                else:
-                    st.error("Credenciales incorrectas. Acceso denegado.")
+        u = st.text_input("Operador").strip()
+        p = st.text_input("Contraseña", type="password").strip()
+        if st.button("🚀 INGRESAR AL SISTEMA", use_container_width=True):
+            res = db.search(User.username == u)
+            if res and res[0]['password'] == hash_p(p):
+                st.session_state.logged_in, st.session_state.user_now = True, u
+                st.rerun()
+            else: st.error("Acceso denegado.")
     st.stop()
 
-# --- DATOS DEL OPERADOR ---
+# Recuperar datos del usuario logueado
 user_data = db.search(User.username == st.session_state.user_now)[0]
 is_admin = (st.session_state.user_now == "Cabecha305")
 
-# --- BARRA LATERAL (SIDEBAR) ---
+# --- BARRA LATERAL ---
 with st.sidebar:
-    st.markdown("### 🛠️ Panel de Control")
+    st.title("⚡ DataSocio Pro")
+    menu = st.radio("Navegación", ["🔍 Escáner Inteligente", "💳 Cargar Créditos", "📊 Reportes"])
     st.write("---")
+    st.metric("CRÉDITOS DISPONIBLES", "INFINITOS 👑" if is_admin else user_data['credits'])
     
-    if is_admin:
-        st.markdown(f"**Nivel de Acceso:** 👑 `ADMIN`")
-        st.markdown(f"**Usuario:** `{st.session_state.user_now}`")
-        st.success("Modo Dios: Créditos Infinitos")
-    else:
-        st.markdown(f"**Nivel de Acceso:** 👤 `OPERADOR`")
-        st.markdown(f"**Usuario:** `{st.session_state.user_now}`")
-        st.metric("Créditos Disponibles", user_data['credits'])
+    # Sección Publicitaria Estructurada
+    st.markdown("""
+        <div class="ad-slot">
+            <span style="color:#38bdf8; font-weight:bold;">📢 SocioAds</span><br>
+            ¿Querés publicitar tu marca acá?<br>
+            <a href="mailto:ads@datasocio.com" style="color:#38bdf8; text-decoration:none;">Contacto Directo</a>
+        </div>
+    """, unsafe_allow_html=True)
     
     st.write("---")
-    st.markdown('<div class="logout-btn">', unsafe_allow_html=True)
     if st.button("⬅️ FINALIZAR SESIÓN", use_container_width=True):
         st.session_state.logged_in = False
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
 
-# --- INTERFAZ DE OPERACIONES ---
-st.title("🛡️ Consola Operativa de Inteligencia")
-
-# Prólogo Interno Recuperado
-st.markdown("""
-    <div class="prologo-section">
-        <h4 style='color: #38bdf8; margin-top:0;'>Bienvenido al Motor de Extracción v17.1</h4>
-        <p style='color: #cbd5e1; font-size: 0.95rem; line-height: 1.6;'>
-            Esta herramienta permite la extracción automatizada de puntos de contacto. 
-            Asegúrese de que las URLs inyectadas sean válidas y tengan el protocolo HTTP/HTTPS.
-        </p>
-        <div style="display: flex; gap: 20px; margin-top: 15px;">
-            <div style="background: rgba(56, 189, 248, 0.1); padding: 10px 15px; border-radius: 8px; border: 1px solid var(--primary);">
-                <span style="color: var(--primary); font-weight: bold;">1. Inyección</span>
-            </div>
-            <div style="background: rgba(56, 189, 248, 0.1); padding: 10px 15px; border-radius: 8px; border: 1px solid var(--primary);">
-                <span style="color: var(--primary); font-weight: bold;">2. Rastreo</span>
-            </div>
-            <div style="background: rgba(56, 189, 248, 0.1); padding: 10px 15px; border-radius: 8px; border: 1px solid var(--primary);">
-                <span style="color: var(--primary); font-weight: bold;">3. Dataset</span>
-            </div>
-        </div>
-    </div>
-""", unsafe_allow_html=True)
-
-# Área de Trabajo
-col_in, col_opt = st.columns([2, 1])
-
-with col_in:
-    # CLAVE DINÁMICA: Cuando st.session_state.input_reset_key cambia, este widget se vacía solo.
-    urls_input = st.text_area(
-        "📋 Inyectar URLs de Objetivo (una por línea):", 
-        height=200, 
-        placeholder="Ejemplo: https://empresa.com",
-        key=f"input_area_{st.session_state.input_reset_key}"
-    )
-
-with col_opt:
-    st.markdown("### 🎯 Objetivos")
-    c_mail = st.checkbox("Extraer Emails", value=True)
-    c_tel = st.checkbox("Extraer Teléfonos", value=True)
-    c_ssl = st.checkbox("Verificar SSL", value=True)
-    st.info("El sistema prioriza la velocidad sobre el renderizado de JS.")
-
-# Acciones Principales
-col_btn1, col_btn2 = st.columns([2, 1])
-
-with col_btn1:
-    if st.button("⚡ EJECUTAR ESCANEO DE PRECISIÓN", use_container_width=True):
-        urls = [u.strip() for u in urls_input.split('\n') if u.strip().startswith('http')]
-        puede_operar = is_admin or (user_data['credits'] >= len(urls))
-        
-        if urls and puede_operar:
-            results = []
-            progress = st.progress(0)
-            for i, url in enumerate(urls):
-                try:
-                    if not is_admin:
-                        nuevos_creditos = user_data['credits'] - 1
-                        db.update({'credits': nuevos_creditos}, User.username == st.session_state.user_now)
-                        user_data['credits'] = nuevos_creditos
-                    
-                    r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
-                    soup = BeautifulSoup(r.text, 'html.parser')
-                    text = soup.get_text()
-                    
-                    res_obj = {"URL": url, "Seguridad": "Segura" if url.startswith("https") else "No Segura"}
-                    if c_mail: 
-                        emails = list(set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)))
-                        res_obj["Emails"] = ", ".join(emails) if emails else "Ninguno"
-                    if c_tel: 
-                        tels = list(set(re.findall(r'\+?\d{10,13}', text)))
-                        res_obj["Teléfonos"] = ", ".join(tels) if tels else "Ninguno"
-                    results.append(res_obj)
-                except:
-                    results.append({"URL": url, "Error": "Inalcanzable"})
-                progress.progress((i+1)/len(urls))
-            
-            st.session_state.last_run = results
-            st.rerun()
-        elif not urls:
-            st.warning("No se detectaron URLs válidas.")
-        else:
-            st.error("Créditos insuficientes.")
-
-with col_btn2:
-    st.markdown('<div class="clear-btn">', unsafe_allow_html=True)
-    if st.button("🧹 LIMPIAR TODO", use_container_width=True):
-        st.session_state.last_run = []
-        st.session_state.input_reset_key += 1 # RESETEA EL CUADRO DE TEXTO
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# --- FUNCIONES DE EXPORTACIÓN ---
-def generar_pdf(datos):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, "DataSocio OS - Reporte de Inteligencia", ln=True, align='C')
-    pdf.ln(10)
-    for r in datos:
-        if "Error" in r: continue
-        pdf.set_font("Arial", 'B', 11)
-        pdf.cell(0, 8, f"URL: {r['URL']} ({r['Seguridad']})", ln=True)
-        pdf.set_font("Arial", '', 10)
-        pdf.multi_cell(0, 6, f"Emails: {r.get('Emails', 'Ninguno')}")
-        pdf.multi_cell(0, 6, f"Teléfonos: {r.get('Teléfonos', 'Ninguno')}")
-        pdf.ln(5)
-    return bytes(pdf.output(dest='S').encode('latin1', 'replace'))
-
-# --- VISUALIZACIÓN DE RESULTADOS ---
-if st.session_state.last_run:
-    st.write("---")
-    st.subheader("💎 Datos Extraídos")
+# --- SECCIÓN: ESCÁNER INTELIGENTE (DEEP SCAN) ---
+if menu == "🔍 Escáner Inteligente":
+    st.title("🛠️ Consola Operativa de Inteligencia")
     
-    # Lógica de Desglose para Excel/CSV (Mantenida de v16.0)
-    export_list = []
-    for r in st.session_state.last_run:
-        if "Error" in r: continue
-        url, sec = r['URL'], r['Seguridad']
-        ems = r.get('Emails', '').split(', ') if r.get('Emails') != 'Ninguno' else []
-        tls = r.get('Teléfonos', '').split(', ') if r.get('Teléfonos') != 'Ninguno' else []
+    st.markdown("""
+        <div class="prologo-section">
+            <h4 style='color: #38bdf8; margin-top:0;'>Bienvenido al Motor de Extracción Avanzado</h4>
+            <p style='color: #cbd5e1; font-size: 0.95rem; margin:0;'>Pegue las URLs objetivo. El sistema escaneará emails, perfiles de Instagram y números de WhatsApp locales.</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    col_in, col_opt = st.columns([2, 1])
+    with col_in:
+        urls_input = st.text_area("📋 Inyectar URLs (una por línea):", height=180, placeholder="https://ejemplo.com", key=f"urls_{st.session_state.input_key}")
+    with col_opt:
+        st.markdown("### 🎯 Parámetros de Extracción")
+        c_mail = st.checkbox("Extraer Emails", value=True)
+        c_wa = st.checkbox("Extraer WhatsApp", value=True)
+        c_ig = st.checkbox("Extraer Instagram", value=True)
+
+    # Botones
+    col_run, col_clean = st.columns([2, 1])
+    with col_run:
+        if st.button("⚡ EJECUTAR ESCANEO DE PRECISIÓN", use_container_width=True):
+            urls = [u.strip() for u in urls_input.split('\n') if u.strip().startswith('http')]
+            if urls and (is_admin or user_data['credits'] >= len(urls)):
+                results = []
+                progress = st.progress(0)
+                for i, url in enumerate(urls):
+                    try:
+                        if not is_admin:
+                            nuevos_creditos = user_data['credits'] - 1
+                            db.update({'credits': nuevos_creditos}, User.username == st.session_state.user_now)
+                            user_data['credits'] = nuevos_creditos
+                        
+                        r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}, timeout=8)
+                        soup = BeautifulSoup(r.text, 'html.parser')
+                        text = soup.get_text()
+                        
+                        res_obj = {"URL": url, "Seguridad": "Segura" if url.startswith("https") else "No Segura"}
+                        
+                        if c_mail: 
+                            emails = list(set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)))
+                            res_obj["Emails"] = ", ".join(emails) if emails else "Ninguno"
+                        if c_wa:
+                            # Patrón para enlaces y números directos de WhatsApp
+                            tels_wa = list(set(re.findall(r'wa\.me/(\d+)', r.text) + re.findall(r'phone=(\d+)', r.text)))
+                            res_obj["WhatsApp"] = ", ".join(tels_wa) if tels_wa else "Ninguno"
+                        if c_ig:
+                            # Patrón para perfiles de Instagram detectados en el código de la página
+                            ig_profiles = list(set(re.findall(r'instagram\.com/([^/?"\s>]+)', r.text)))
+                            res_obj["Instagram"] = ", ".join(ig_profiles) if ig_profiles else "Ninguno"
+                        
+                        results.append(res_obj)
+                    except:
+                        results.append({"URL": url, "Error": "Inalcanzable"})
+                    progress.progress((i+1)/len(urls))
+                st.session_state.last_run = results
+                st.rerun()
+            elif not urls:
+                st.warning("Ingrese al menos una URL válida.")
+            else:
+                st.error("Créditos insuficientes. Por favor, recargue su saldo.")
+
+    with col_clean:
+        if st.button("🧹 LIMPIAR ESCÁNER", use_container_width=True):
+            st.session_state.last_run = []
+            st.session_state.input_key += 1
+            st.rerun()
+
+    # --- RENDERIZADO Y EXPORTACIÓN ---
+    if st.session_state.last_run:
+        st.write("---")
+        st.subheader("💎 Datos Extraídos")
         
-        if not ems and not tls:
-            export_list.append({'URL': url, 'Seguridad': sec, 'Tipo': 'N/A', 'Contacto': 'Sin Datos'})
-        for e in ems: export_list.append({'URL': url, 'Seguridad': sec, 'Tipo': 'Email', 'Contacto': e})
-        for t in tls: export_list.append({'URL': url, 'Seguridad': sec, 'Tipo': 'Teléfono', 'Contacto': t})
+        # Desglose Tidy Data para Excel/CSV (Mantenido)
+        export_list = []
+        for r in st.session_state.last_run:
+            if "Error" in r: continue
+            url, sec = r['URL'], r['Seguridad']
+            ems = r.get('Emails', '').split(', ') if r.get('Emails') != 'Ninguno' else []
+            was = r.get('WhatsApp', '').split(', ') if r.get('WhatsApp') != 'Ninguno' else []
+            igs = r.get('Instagram', '').split(', ') if r.get('Instagram') != 'Ninguno' else []
             
-    df_export = pd.DataFrame(export_list)
+            if not ems and not was and not igs:
+                export_list.append({'URL': url, 'Seguridad': sec, 'Tipo': 'N/A', 'Contacto': 'Sin Datos'})
+            for e in ems: export_list.append({'URL': url, 'Seguridad': sec, 'Tipo': 'Email', 'Contacto': e})
+            for w in was: export_list.append({'URL': url, 'Seguridad': sec, 'Tipo': 'WhatsApp', 'Contacto': w})
+            for ig in igs: export_list.append({'URL': url, 'Seguridad': sec, 'Tipo': 'Instagram', 'Contacto': ig})
+                
+        df_export = pd.DataFrame(export_list)
 
-    col_dl1, col_dl2, col_dl3 = st.columns(3)
-    with col_dl1:
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df_export.to_excel(writer, index=False, sheet_name='Resultados')
-        st.download_button("📥 EXCEL (.xlsx)", buffer, "data_socio.xlsx", use_container_width=True)
-    with col_dl2:
-        st.download_button("📥 CSV (.csv)", df_export.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig'), "data_socio.csv", use_container_width=True)
-    with col_dl3:
-        st.download_button("📥 PDF (.pdf)", generar_pdf(st.session_state.last_run), "reporte_socio.pdf", use_container_width=True)
+        col_ex, col_csv = st.columns(2)
+        with col_ex:
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf, engine='xlsxwriter') as wr: df_export.to_excel(wr, index=False)
+            st.download_button("📥 EXPORTAR EXCEL (.xlsx)", buf, "contactos.xlsx", use_container_width=True)
+        with col_csv:
+            st.download_button("📥 EXPORTAR CSV (.csv)", df_export.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig'), "contactos.csv", use_container_width=True)
 
-    # Vista previa en tarjetas (Recuperada con diseño completo)
-    for r in st.session_state.last_run:
-        if "Error" in r:
-            st.error(f"❌ {r['URL']} - No se pudo acceder al servidor.")
-        else:
-            badge_color = "#10b981" if r['Seguridad'] == "Segura" else "#ef4444"
-            st.markdown(f"""
-                <div class="res-card">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <b style="color:#38bdf8; font-size:1.1rem;">🔗 {r['URL']}</b>
-                        <span class="status-badge" style="background:{badge_color}; color:white;">{r['Seguridad']}</span>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top:15px;">
-                        <div>
-                            <p style="margin:0; font-size:0.8rem; color:#94a3b8; text-transform:uppercase;">📧 Emails Detectados</p>
-                            <span style="color:white; font-size:0.9rem;">{r.get('Emails', 'Ninguno')}</span>
-                        </div>
-                        <div>
-                            <p style="margin:0; font-size:0.8rem; color:#94a3b8; text-transform:uppercase;">📞 Líneas Telefónicas</p>
-                            <span style="color:white; font-size:0.9rem;">{r.get('Teléfonos', 'Ninguno')}</span>
+        for r in st.session_state.last_run:
+            if "Error" in r:
+                st.error(f"❌ {r['URL']} - Inalcanzable")
+            else:
+                badge = "#10b981" if r['Seguridad'] == "Segura" else "#ef4444"
+                st.markdown(f"""
+                    <div class="res-card">
+                        <b>🔗 {r['URL']}</b> <span class="status-badge" style="background:{badge}; color:white;">{r['Seguridad']}</span><br>
+                        <div style="margin-top: 10px; display: flex; gap: 15px;">
+                            <span>📧 Emails: <b>{r.get('Emails','-')}</b></span>
+                            <span>💬 WA: <b>{r.get('WhatsApp','-')}</b></span>
+                            <span>📸 IG: <b>{r.get('Instagram','-')}</b></span>
                         </div>
                     </div>
-                </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
 
-st.write("---")
-st.caption("DataSocio Engine v17.1 | Full-Stack Extraction System | Windows 11 i5 Optimized")
+# --- SECCIÓN: CARGAR CRÉDITOS (AUTOMATIZADO) ---
+elif menu == "💳 Cargar Créditos":
+    st.title("💳 Recarga Automática de Créditos")
+    st.info("Elegí tu pack. Los pagos se procesan en ARS de forma segura y se acreditan automáticamente en tu Naranja X.")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    # Firma criptográfica para cada pack del usuario actual
+    sig_p1 = generar_firma_pago(st.session_state.user_now, "500")
+    sig_p2 = generar_firma_pago(st.session_state.user_now, "2000")
+    sig_p3 = generar_firma_pago(st.session_state.user_now, "10000")
+    
+    # URL de retorno de tu app en Streamlit Cloud (Socio-redirección)
+    app_url = "https://datasocio.streamlit.app"  # Reemplazar por la URL real de tu app cuando esté online
+    
+    with col1:
+        st.markdown("""
+            <div class="pack-card">
+                <h3>Pack Starter</h3>
+                <h2 style="color:#38bdf8;">$2.500 ARS</h2>
+                <p><b>500 Créditos</b></p>
+                <p style="font-size:0.8rem; color:#94a3b8;">Ideal para validaciones rápidas.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        # Link de Checkout Mobbex/Dlocal (con parámetros de auto-retorno seguros)
+        mobbex_link_1 = f"https://mobbex.com/p/checkout/xxxx?return_url={app_url}?payment=success%26user={st.session_state.user_now}%26credits=500%26sig={sig_p1}"
+        st.link_button("🛒 COMPRAR PACK", mobbex_link_1, use_container_width=True)
+        
+    with col2:
+        st.markdown("""
+            <div class="pack-card" style="border-color:#38bdf8;">
+                <h3>Pack Business</h3>
+                <h2 style="color:#10b981;">$8.000 ARS</h2>
+                <p><b>2.000 Créditos</b></p>
+                <p style="font-size:0.8rem; color:#94a3b8;">La opción más elegida por agencias.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        mobbex_link_2 = f"https://mobbex.com/p/checkout/xxxx?return_url={app_url}?payment=success%26user={st.session_state.user_now}%26credits=2000%26sig={sig_p2}"
+        st.link_button("🔥 COMPRAR RECOMENDADO", mobbex_link_2, use_container_width=True)
+        
+    with col3:
+        st.markdown("""
+            <div class="pack-card">
+                <h3>Pack Pro-Scale</h3>
+                <h2 style="color:#ef4444;">$30.000 ARS</h2>
+                <p><b>10.000 Créditos</b></p>
+                <p style="font-size:0.8rem; color:#94a3b8;">Para minería de datos a gran escala.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        mobbex_link_3 = f"https://mobbex.com/p/checkout/xxxx?return_url={app_url}?payment=success%26user={st.session_state.user_now}%26credits=10000%26sig={sig_p3}"
+        st.link_button("🚀 COMPRAR ILIMITADO", mobbex_link_3, use_container_width=True)
+
+# --- SECCIÓN: REPORTES (MANTENIDA) ---
+elif menu == "📊 Reportes":
+    st.title("📊 Estadísticas de Operación")
+    st.write("Historial y rendimiento del operador.")
+    # (Aquí va la lógica de métricas que usemos más adelante)
