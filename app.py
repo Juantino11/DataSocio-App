@@ -11,35 +11,42 @@ from tinydb import TinyDB, Query
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="DataSocio OS | Elite Intelligence", page_icon="⚡", layout="wide")
 
-# CSS para darle vida y monetizar
+# CSS para darle vida, humanidad y elegancia
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     .stApp { background-color: #0f172a; color: #f8fafc; }
     
-    /* Banners y Publicidad */
-    .ad-banner {
-        background: linear-gradient(90deg, #1e293b, #334155);
-        padding: 10px; border-radius: 10px; border: 1px dashed #38bdf8;
-        text-align: center; margin-bottom: 20px; font-size: 0.8rem; color: #94a3b8;
+    /* Header & Prólogo */
+    .hero-section {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        padding: 3rem; border-radius: 20px; border: 1px solid #38bdf8;
+        text-align: center; margin-bottom: 2rem;
     }
     
-    /* Panel de Control */
-    .op-card {
-        background: #1e293b; padding: 2rem; border-radius: 15px;
-        border: 1px solid #1e4ed8; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    /* Tarjetas de Beneficios */
+    .feature-card {
+        background: rgba(30, 41, 59, 0.7);
+        padding: 1.5rem; border-radius: 15px;
+        border: 1px solid #334155; text-align: center; height: 100%;
+    }
+
+    /* Tarjetas de Resultados (Vista Humana) */
+    .result-card {
+        background: #1e293b; padding: 1.5rem; border-radius: 12px;
+        border-left: 6px solid #38bdf8; margin-bottom: 1rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
     }
     
-    /* Botones Premium */
     .stButton>button {
         background: linear-gradient(90deg, #38bdf8, #1d4ed8);
-        color: white; border: none; font-weight: bold; border-radius: 8px; width: 100%;
+        color: white; border: none; font-weight: bold; border-radius: 8px;
     }
-    .pay-button {
-        display: inline-block; padding: 10px 20px; background: #10b981;
-        color: white; text-decoration: none; border-radius: 8px; font-weight: bold;
-        text-align: center; width: 100%; margin-top: 10px;
+    .pay-link {
+        display: block; padding: 12px; background: #10b981;
+        color: white; text-decoration: none; border-radius: 8px;
+        text-align: center; font-weight: bold; margin-top: 15px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -53,124 +60,132 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user_now = None
 
-# --- LÓGICA DE ACCESO (PANTALLA DE INICIO) ---
+# --- PANTALLA DE INICIO (PRÓLOGO + LOGIN) ---
 if not st.session_state.logged_in:
-    st.markdown("<h1 style='text-align:center; color:#38bdf8;'>DataSocio Intelligence OS</h1>", unsafe_allow_html=True)
+    # 1. EL PRÓLOGO (LA VITRINA)
+    st.markdown("""
+        <div class="hero-section">
+            <h1 style='color: #38bdf8; font-size: 3.5rem;'>DataSocio Intelligence OS</h1>
+            <p style='font-size: 1.4rem; color: #94a3b8;'>La herramienta definitiva para potenciar tu red de contactos y analizar mercados en segundos.</p>
+        </div>
+    """, unsafe_allow_html=True)
     
-    _, col_auth, _ = st.columns([1, 1.3, 1])
-    with col_auth:
-        mode = st.radio("Socio, elige tu entrada:", ["Ingresar", "Registrarse"], horizontal=True)
-        u = st.text_input("Usuario")
-        p = st.text_input("Contraseña", type="password")
+    col_f1, col_f2, col_f3 = st.columns(3)
+    with col_f1:
+        st.markdown('<div class="feature-card"><h2>🔍</h2><h3>Extracción Pro</h3><p>Rastrea emails y teléfonos reales sin vueltas.</p></div>', unsafe_allow_html=True)
+    with col_f2:
+        st.markdown('<div class="feature-card"><h2>🧠</h2><h3>Análisis de IA</h3><p>Detecta el sentimiento y reputación de cada sitio.</p></div>', unsafe_allow_html=True)
+    with col_f3:
+        st.markdown('<div class="feature-card"><h2>📊</h2><h3>Reportes Listos</h3><p>Exporta todo a Excel profesional en un clic.</p></div>', unsafe_allow_html=True)
+
+    st.write("---")
+
+    # 2. EL ACCESO (DISCRETO Y ELEGANTE)
+    _, col_login, _ = st.columns([1, 1.2, 1])
+    with col_login:
+        st.markdown("<h3 style='text-align:center;'>🔐 Panel de Acceso</h3>", unsafe_allow_html=True)
+        tab1, tab2 = st.tabs(["Ingresar", "Registrarse"])
         
-        if mode == "Ingresar" and st.button("ACCEDER AL COMANDO"):
-            res = db.search(User.username == u)
-            if res and res[0]['password'] == hash_p(p):
-                st.session_state.logged_in = True
-                st.session_state.user_now = u
-                st.rerun()
-            else: st.error("Acceso denegado.")
+        with tab1:
+            u = st.text_input("Usuario")
+            p = st.text_input("Contraseña", type="password")
+            if st.button("🚀 ENTRAR AL SISTEMA"):
+                res = db.search(User.username == u)
+                if res and res[0]['password'] == hash_p(p):
+                    st.session_state.logged_in = True
+                    st.session_state.user_now = u
+                    st.rerun()
+                else: st.error("Error en credenciales.")
         
-        if mode == "Registrarse" and st.button("UNIRSE A LA RED"):
-            if not db.search(User.username == u):
-                db.insert({'username': u, 'password': hash_p(p), 'credits': 10})
-                st.success("¡Bienvenido! Ya podés ingresar.")
-            else: st.error("Usuario ya registrado.")
+        with tab2:
+            u_reg = st.text_input("Nuevo Usuario")
+            p_reg = st.text_input("Nueva Contraseña", type="password")
+            if st.button("🎁 CREAR MI CUENTA"):
+                if not db.search(User.username == u_reg):
+                    db.insert({'username': u_reg, 'password': hash_p(p_reg), 'credits': 10})
+                    st.success("¡Listo! Ya podés ingresar.")
+                else: st.error("Ese usuario ya existe.")
     st.stop()
 
 # --- INTERFAZ OPERATIVA (USUARIO LOGUEADO) ---
 user_rec = db.search(User.username == st.session_state.user_now)[0]
 
-# --- SIDEBAR MONETIZADA ---
 with st.sidebar:
-    st.markdown(f"### 👤 {st.session_state.user_now}")
-    st.metric("CRÉDITOS DISPONIBLES", user_rec['credits'])
-    
-    st.markdown("---")
-    st.markdown("### 💎 PLAN PREMIUM")
-    st.write("¿Te quedaste sin créditos? Potenciá tu alcance.")
-    # ENLACE DE PAGO (Aquí podrías poner tu link de Mercado Pago o PayPal)
-    st.markdown('<a href="https://tu-enlace-de-pago.com" target="_blank" class="pay-button">💳 COMPRAR 100 CRÉDITOS</a>', unsafe_allow_html=True)
-    
+    st.title(f"👤 {st.session_state.user_now}")
+    st.metric("TUS CRÉDITOS", user_rec['credits'])
+    st.write("---")
+    st.markdown("### 🚀 Subir de Nivel")
+    st.write("Obtené escaneos ilimitados y soporte prioritario.")
+    st.markdown('<a href="#" class="pay-link">💳 SUSCRIBIRSE PRO</a>', unsafe_allow_html=True)
     st.write("")
     if st.button("Cerrar Sesión"):
         st.session_state.logged_in = False
         st.rerun()
-    
-    st.markdown("---")
-    st.write("💡 *Sugerencia: El análisis de sentimiento ahorra 2 horas de trabajo manual.*")
 
 # --- CUERPO PRINCIPAL ---
+st.markdown("<h1 style='color: #38bdf8;'>🚀 Consola de Operaciones</h1>", unsafe_allow_html=True)
 
-# Espacio para Publicidad (Top)
-st.markdown('<div class="ad-banner">🚀 ESPACIO PUBLICITARIO DISPONIBLE - Contacta con DataSocio para anunciar aquí 🚀</div>', unsafe_allow_html=True)
+# Banner de publicidad/cooperación
+st.info("📢 **¿Querés cooperar con el proyecto?** Tu marca puede aparecer aquí ante cientos de socios. Contactanos.")
 
-st.title("⚡ Centro de Extracción de Datos")
+with st.expander("🛠️ CONFIGURAR ESCANEO", expanded=True):
+    urls_input = st.text_area("📋 Inyectar URLs (una por línea):", height=100)
+    if st.button("⚡ INICIAR INTELIGENCIA"):
+        urls = [u.strip() for u in urls_input.split('\n') if u.strip().startswith('http')]
+        if not urls:
+            st.warning("Ingrese objetivos válidos.")
+        elif len(urls) > user_rec['credits']:
+            st.error("No tenés créditos suficientes.")
+        else:
+            results = []
+            progress_bar = st.progress(0)
+            for i, url in enumerate(urls):
+                try:
+                    db.update({'credits': user_rec['credits'] - 1}, User.username == st.session_state.user_now)
+                    r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                    soup = BeautifulSoup(r.text, 'html.parser')
+                    text = soup.get_text()
+                    emails = list(set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)))
+                    tels = list(set(re.findall(r'\+?\d{10,13}', text)))
+                    
+                    results.append({
+                        "url": url,
+                        "emails": emails,
+                        "tels": tels,
+                        "sentimiento": "Positivo ⭐" if "excelente" in text.lower() else "Neutral ⚖️"
+                    })
+                    progress_bar.progress((i+1)/len(urls))
+                except:
+                    results.append({"url": url, "emails": [], "tels": [], "sentimiento": "Error ❌"})
+            st.session_state.last_run = results
 
-with st.container():
-    st.markdown('<div class="op-card">', unsafe_allow_html=True)
-    col1, col2 = st.columns([2, 1])
+# --- VISTA HUMANA DE RESULTADOS ---
+if 'last_run' in st.session_state:
+    st.write("### 💎 Hallazgos de Inteligencia")
     
-    with col1:
-        urls_input = st.text_area("📋 Inyectar URLs (una por línea):", height=150, placeholder="https://ejemplo.com.ar")
+    for res in st.session_state.last_run:
+        with st.container():
+            st.markdown(f"""
+                <div class="result-card">
+                    <h4>🔗 {res['url']}</h4>
+                    <p><b>📧 Emails:</b> {', '.join(res['emails']) if res['emails'] else 'No encontrados'}</p>
+                    <p><b>📞 Teléfonos:</b> {', '.join(res['tels']) if res['tels'] else 'No encontrados'}</p>
+                    <p><b>🛡️ Reputación:</b> {res['sentimiento']}</p>
+                </div>
+            """, unsafe_allow_html=True)
     
-    with col2:
-        st.write("### ⚙️ Parámetros")
-        deep_scan = st.checkbox("Escaneo Profundo", value=True)
-        get_sentiment = st.checkbox("Analizar Reputación", value=True)
-        st.write("---")
-        if st.button("⚡ EJECUTAR OPERACIÓN"):
-            urls = [u.strip() for u in urls_input.split('\n') if u.strip().startswith('http')]
-            if not urls:
-                st.warning("⚠️ Sin objetivos válidos.")
-            elif len(urls) > user_rec['credits']:
-                st.error("❌ Créditos insuficientes.")
-            else:
-                results = []
-                bar = st.progress(0)
-                
-                for i, url in enumerate(urls):
-                    try:
-                        db.update({'credits': user_rec['credits'] - 1}, User.username == st.session_state.user_now)
-                        r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
-                        soup = BeautifulSoup(r.text, 'html.parser')
-                        text = soup.get_text()
-                        
-                        emails = list(set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)))
-                        tels = list(set(re.findall(r'\+?\d{10,13}', text)))
-                        
-                        results.append({
-                            "OBJETIVO": url,
-                            "CONTACTOS": f"📧 {len(emails)} | 📞 {len(tels)}",
-                            "EMAILS": ", ".join(emails),
-                            "REPUTACIÓN": "⭐ Positiva" if "excelente" in text.lower() else "⚖️ Neutral"
-                        })
-                        bar.progress((i+1)/len(urls))
-                    except:
-                        results.append({"OBJETIVO": url, "CONTACTOS": "Error", "EMAILS": "-", "REPUTACIÓN": "-"})
-
-                if results:
-                    st.session_state.last_results = results
-                    st.rerun()
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# --- RESULTADOS CON ESTILO ---
-if 'last_results' in st.session_state:
-    st.write("### 📊 Reporte de Inteligencia")
-    df = pd.DataFrame(st.session_state.last_results)
-    st.table(df) # Usamos tabla para que se vea más sólido
-    
+    # Botón de Descarga
+    df_export = pd.DataFrame(st.session_state.last_run)
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='DataSocio_Leads')
+        df_export.to_excel(writer, index=False)
     
     st.download_button(
-        label="📥 EXPORTAR BASE DE DATOS PROFESIONAL",
+        label="📥 DESCARGAR BASE DE DATOS (Excel)",
         data=output.getvalue(),
-        file_name=f"Reporte_Elite_{st.session_state.user_now}.xlsx",
+        file_name="DataSocio_Intelligence.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
 st.write("---")
-st.caption(f"DataSocio Engine v9.0 | Windows 11 i5 | Paso del Rey, Argentina")
+st.caption("DataSocio Engine v9.1 | Powered by i5 Win11 | Argentina")
