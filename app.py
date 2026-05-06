@@ -3,7 +3,6 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 import re
-import time
 import hashlib
 from io import BytesIO
 from tinydb import TinyDB, Query
@@ -11,42 +10,55 @@ from tinydb import TinyDB, Query
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="DataSocio OS | Elite Intelligence", page_icon="⚡", layout="wide")
 
-# CSS para darle vida, humanidad y elegancia
+# CSS para Contraste Máximo y Ubicación de Salida
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-    .stApp { background-color: #0f172a; color: #f8fafc; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
     
-    /* Header & Prólogo */
+    :root {
+        --primary-bg: #0f172a;
+        --card-bg: #1e293b;
+        --text-main: #ffffff;
+        --accent: #38bdf8;
+        --success: #10b981;
+    }
+
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif; background-color: var(--primary-bg); color: var(--text-main); }
+    
+    /* Botón Cerrar Sesión (Superior Izquierda) */
+    .st-emotion-cache-1av5p16 { 
+        position: fixed; top: 10px; left: 10px; z-index: 1000;
+    }
+
+    /* Estilo de Tarjetas de Inicio */
     .hero-section {
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        padding: 3rem; border-radius: 20px; border: 1px solid #38bdf8;
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        padding: 3rem 2rem; border-radius: 24px; border: 2px solid #334155;
         text-align: center; margin-bottom: 2rem;
     }
     
-    /* Tarjetas de Beneficios */
-    .feature-card {
-        background: rgba(30, 41, 59, 0.7);
-        padding: 1.5rem; border-radius: 15px;
-        border: 1px solid #334155; text-align: center; height: 100%;
-    }
+    h1, h2, h3 { color: var(--accent) !important; font-weight: 800 !important; }
 
-    /* Tarjetas de Resultados (Vista Humana) */
+    /* Botón PRO con contraste mejorado */
+    .pay-link {
+        display: block; padding: 15px; background: var(--success);
+        color: #000000 !important; text-decoration: none; border-radius: 12px;
+        text-align: center; font-weight: 900; font-size: 1.1rem;
+        border: 2px solid #ffffff; margin-top: 10px;
+    }
+    .pay-link:hover { background: #059669; transform: scale(1.02); transition: 0.2s; }
+
+    /* Tarjetas de Resultados */
     .result-card {
-        background: #1e293b; padding: 1.5rem; border-radius: 12px;
-        border-left: 6px solid #38bdf8; margin-bottom: 1rem;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        background: #1e293b; padding: 1.5rem; border-radius: 16px;
+        border: 1px solid #334155; border-left: 8px solid var(--accent);
+        margin-bottom: 1rem;
     }
     
-    .stButton>button {
-        background: linear-gradient(90deg, #38bdf8, #1d4ed8);
-        color: white; border: none; font-weight: bold; border-radius: 8px;
-    }
-    .pay-link {
-        display: block; padding: 12px; background: #10b981;
-        color: white; text-decoration: none; border-radius: 8px;
-        text-align: center; font-weight: bold; margin-top: 15px;
+    .data-badge {
+        background: #0ea5e9; color: white; padding: 4px 12px;
+        border-radius: 20px; font-weight: bold; font-size: 0.85rem;
+        margin-right: 8px; display: inline-block;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -60,132 +72,89 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user_now = None
 
-# --- PANTALLA DE INICIO (PRÓLOGO + LOGIN) ---
+# --- SALIDA EN ESQUINA SUPERIOR IZQUIERDA ---
+if st.session_state.logged_in:
+    st.sidebar.markdown("""<style> [data-testid="stSidebarNav"] {display: none;} </style>""", unsafe_allow_html=True)
+    with st.container():
+        col_exit, _ = st.columns([1, 8])
+        with col_exit:
+            if st.button("⬅️ SALIR"):
+                st.session_state.logged_in = False
+                st.rerun()
+
+# --- PANTALLA DE INICIO ---
 if not st.session_state.logged_in:
-    # 1. EL PRÓLOGO (LA VITRINA)
     st.markdown("""
         <div class="hero-section">
-            <h1 style='color: #38bdf8; font-size: 3.5rem;'>DataSocio Intelligence OS</h1>
-            <p style='font-size: 1.4rem; color: #94a3b8;'>La herramienta definitiva para potenciar tu red de contactos y analizar mercados en segundos.</p>
+            <h1>DataSocio Intelligence OS</h1>
+            <p style="color: #cbd5e1;">Comando central de extracción y análisis de prospectos.</p>
         </div>
     """, unsafe_allow_html=True)
     
-    col_f1, col_f2, col_f3 = st.columns(3)
-    with col_f1:
-        st.markdown('<div class="feature-card"><h2>🔍</h2><h3>Extracción Pro</h3><p>Rastrea emails y teléfonos reales sin vueltas.</p></div>', unsafe_allow_html=True)
-    with col_f2:
-        st.markdown('<div class="feature-card"><h2>🧠</h2><h3>Análisis de IA</h3><p>Detecta el sentimiento y reputación de cada sitio.</p></div>', unsafe_allow_html=True)
-    with col_f3:
-        st.markdown('<div class="feature-card"><h2>📊</h2><h3>Reportes Listos</h3><p>Exporta todo a Excel profesional en un clic.</p></div>', unsafe_allow_html=True)
-
-    st.write("---")
-
-    # 2. EL ACCESO (DISCRETO Y ELEGANTE)
-    _, col_login, _ = st.columns([1, 1.2, 1])
-    with col_login:
-        st.markdown("<h3 style='text-align:center;'>🔐 Panel de Acceso</h3>", unsafe_allow_html=True)
-        tab1, tab2 = st.tabs(["Ingresar", "Registrarse"])
-        
-        with tab1:
-            u = st.text_input("Usuario")
-            p = st.text_input("Contraseña", type="password")
-            if st.button("🚀 ENTRAR AL SISTEMA"):
-                res = db.search(User.username == u)
-                if res and res[0]['password'] == hash_p(p):
-                    st.session_state.logged_in = True
-                    st.session_state.user_now = u
-                    st.rerun()
-                else: st.error("Error en credenciales.")
-        
-        with tab2:
-            u_reg = st.text_input("Nuevo Usuario")
-            p_reg = st.text_input("Nueva Contraseña", type="password")
-            if st.button("🎁 CREAR MI CUENTA"):
-                if not db.search(User.username == u_reg):
-                    db.insert({'username': u_reg, 'password': hash_p(p_reg), 'credits': 10})
-                    st.success("¡Listo! Ya podés ingresar.")
-                else: st.error("Ese usuario ya existe.")
+    _, col_auth, _ = st.columns([1, 1.3, 1])
+    with col_auth:
+        mode = st.radio("Acción:", ["Ingresar", "Registrarse"], horizontal=True)
+        u = st.text_input("Usuario")
+        p = st.text_input("Contraseña", type="password")
+        if st.button("ACCEDER AHORA"):
+            res = db.search(User.username == u)
+            if res and res[0]['password'] == hash_p(p):
+                st.session_state.logged_in = True
+                st.session_state.user_now = u
+                st.rerun()
+            else: st.error("Error en credenciales.")
     st.stop()
 
-# --- INTERFAZ OPERATIVA (USUARIO LOGUEADO) ---
+# --- PANEL OPERATIVO ---
 user_rec = db.search(User.username == st.session_state.user_now)[0]
 
 with st.sidebar:
-    st.title(f"👤 {st.session_state.user_now}")
-    st.metric("TUS CRÉDITOS", user_rec['credits'])
+    st.markdown(f"## 👤 {st.session_state.user_now}")
+    st.markdown(f"**Créditos:** `{user_rec['credits']}`")
     st.write("---")
     st.markdown("### 🚀 Subir de Nivel")
-    st.write("Obtené escaneos ilimitados y soporte prioritario.")
+    st.write("Obtené escaneos ilimitados.")
+    # Botón con contraste mejorado (Texto negro sobre fondo verde brillante)
     st.markdown('<a href="#" class="pay-link">💳 SUSCRIBIRSE PRO</a>', unsafe_allow_html=True)
-    st.write("")
-    if st.button("Cerrar Sesión"):
-        st.session_state.logged_in = False
-        st.rerun()
 
-# --- CUERPO PRINCIPAL ---
-st.markdown("<h1 style='color: #38bdf8;'>🚀 Consola de Operaciones</h1>", unsafe_allow_html=True)
+st.title("🛠️ Consola de Inteligencia")
+urls_input = st.text_area("📋 URLs a investigar:", height=100)
 
-# Banner de publicidad/cooperación
-st.info("📢 **¿Querés cooperar con el proyecto?** Tu marca puede aparecer aquí ante cientos de socios. Contactanos.")
+if st.button("⚡ INICIAR EXTRACCIÓN"):
+    urls = [u.strip() for u in urls_input.split('\n') if u.strip().startswith('http')]
+    if not urls:
+        st.warning("⚠️ URLs inválidas.")
+    elif len(urls) > user_rec['credits']:
+        st.error("❌ Créditos insuficientes.")
+    else:
+        results = []
+        bar = st.progress(0)
+        for i, url in enumerate(urls):
+            try:
+                db.update({'credits': user_rec['credits'] - 1}, User.username == st.session_state.user_now)
+                r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                soup = BeautifulSoup(r.text, 'html.parser')
+                text = soup.get_text()
+                emails = list(set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)))
+                tels = list(set(re.findall(r'\+?\d{10,13}', text)))
+                results.append({"url": url, "emails": emails, "tels": tels, "status": "⭐ Positivo" if "excelente" in text.lower() else "⚖️ Neutral"})
+                bar.progress((i+1)/len(urls))
+            except:
+                results.append({"url": url, "emails": [], "tels": [], "status": "❌ Error"})
+        st.session_state.last_run = results
 
-with st.expander("🛠️ CONFIGURAR ESCANEO", expanded=True):
-    urls_input = st.text_area("📋 Inyectar URLs (una por línea):", height=100)
-    if st.button("⚡ INICIAR INTELIGENCIA"):
-        urls = [u.strip() for u in urls_input.split('\n') if u.strip().startswith('http')]
-        if not urls:
-            st.warning("Ingrese objetivos válidos.")
-        elif len(urls) > user_rec['credits']:
-            st.error("No tenés créditos suficientes.")
-        else:
-            results = []
-            progress_bar = st.progress(0)
-            for i, url in enumerate(urls):
-                try:
-                    db.update({'credits': user_rec['credits'] - 1}, User.username == st.session_state.user_now)
-                    r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
-                    soup = BeautifulSoup(r.text, 'html.parser')
-                    text = soup.get_text()
-                    emails = list(set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)))
-                    tels = list(set(re.findall(r'\+?\d{10,13}', text)))
-                    
-                    results.append({
-                        "url": url,
-                        "emails": emails,
-                        "tels": tels,
-                        "sentimiento": "Positivo ⭐" if "excelente" in text.lower() else "Neutral ⚖️"
-                    })
-                    progress_bar.progress((i+1)/len(urls))
-                except:
-                    results.append({"url": url, "emails": [], "tels": [], "sentimiento": "Error ❌"})
-            st.session_state.last_run = results
-
-# --- VISTA HUMANA DE RESULTADOS ---
 if 'last_run' in st.session_state:
-    st.write("### 💎 Hallazgos de Inteligencia")
-    
-    for res in st.session_state.last_run:
-        with st.container():
-            st.markdown(f"""
-                <div class="result-card">
-                    <h4>🔗 {res['url']}</h4>
-                    <p><b>📧 Emails:</b> {', '.join(res['emails']) if res['emails'] else 'No encontrados'}</p>
-                    <p><b>📞 Teléfonos:</b> {', '.join(res['tels']) if res['tels'] else 'No encontrados'}</p>
-                    <p><b>🛡️ Reputación:</b> {res['sentimiento']}</p>
+    for r in st.session_state.last_run:
+        st.markdown(f"""
+            <div class="result-card">
+                <h4 style="margin:0;">🔗 {r['url']}</h4>
+                <div style="margin-top:10px;">
+                    <span class="data-badge">📧 {len(r['emails'])} Emails</span>
+                    <span class="data-badge">📞 {len(r['tels'])} Teléfonos</span>
+                    <span class="data-badge" style="background:#475569;">🛡️ {r['status']}</span>
                 </div>
-            """, unsafe_allow_html=True)
-    
-    # Botón de Descarga
-    df_export = pd.DataFrame(st.session_state.last_run)
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_export.to_excel(writer, index=False)
-    
-    st.download_button(
-        label="📥 DESCARGAR BASE DE DATOS (Excel)",
-        data=output.getvalue(),
-        file_name="DataSocio_Intelligence.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+            </div>
+        """, unsafe_allow_html=True)
 
 st.write("---")
-st.caption("DataSocio Engine v9.1 | Powered by i5 Win11 | Argentina")
+st.caption("DataSocio v9.2 | UX Refined | Win11 i5")
