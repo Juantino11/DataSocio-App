@@ -17,15 +17,22 @@ st.markdown("""
     
     html, body, [class*="css"] { font-family: 'Inter', sans-serif; background-color: var(--bg); }
     
-    .hero-section {
-        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-        padding: 2.5rem; border-radius: 20px; border: 1px solid #334155;
-        text-align: center; margin-bottom: 2rem;
+    /* Login Minimalista */
+    .login-header {
+        text-align: center; margin-bottom: 2rem; padding: 2rem;
+        background: var(--card); border-radius: 15px; border: 1px solid #334155;
     }
 
-    .stButton button { border-radius: 8px !important; }
+    /* Prólogo Interno */
+    .prologo-section {
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        padding: 1.5rem; border-radius: 15px; border: 1px solid #334155;
+        margin-bottom: 2rem;
+    }
+
+    .stButton button { border-radius: 8px !important; font-weight: bold; }
     .logout-btn button { background-color: var(--danger) !important; color: white !important; }
-    .clear-btn button { background-color: #475569 !important; color: white !important; margin-top: 10px; }
+    .clear-btn button { background-color: #475569 !important; color: white !important; margin-top: 5px; }
     
     .res-card {
         background: var(--card); padding: 20px; border-radius: 12px;
@@ -46,9 +53,9 @@ def hash_p(password): return hashlib.sha256(str.encode(password)).hexdigest()
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'last_run' not in st.session_state: st.session_state.last_run = []
 
-# --- PANTALLA DE LOGIN ---
+# --- PANTALLA DE LOGIN (MINIMALISTA Y DIRECTA) ---
 if not st.session_state.logged_in:
-    st.markdown('<div class="hero-section"><h1 style="color: #38bdf8;">DataSocio Intelligence OS</h1><p style="color: #cbd5e1;">Motor de extracción masiva y análisis de prospectos.</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="login-header"><h1 style="color: #38bdf8;">DataSocio OS</h1><p style="color:#94a3b8;">Acceso Restringido</p></div>', unsafe_allow_html=True)
     _, col_login, _ = st.columns([1, 1, 1])
     with col_login:
         u = st.text_input("Operador").strip()
@@ -59,10 +66,10 @@ if not st.session_state.logged_in:
                 st.session_state.logged_in = True
                 st.session_state.user_now = u
                 st.rerun()
-            else: st.error("Acceso denegado")
+            else: st.error("Acceso denegado. Verifique credenciales.")
     st.stop()
 
-# --- VALIDACIÓN DE USUARIO ---
+# --- VALIDACIÓN DE USUARIO (MODO DIOS) ---
 user_data = db.search(User.username == st.session_state.user_now)[0]
 is_admin = (st.session_state.user_now == "Cabecha305")
 
@@ -81,9 +88,24 @@ with st.sidebar:
         st.markdown(f"### 👤 `Operador: {st.session_state.user_now}`")
         st.metric("CRÉDITOS", user_data['credits'])
 
-# --- PANEL CENTRAL ---
+# --- PANEL CENTRAL (CON PRÓLOGO INCLUIDO) ---
 st.title("🛠️ Consola de Inteligencia")
 
+# El Prólogo ahora vive aquí adentro
+st.markdown("""
+    <div class="prologo-section">
+        <h4 style='color: #38bdf8; margin-top:0;'>Bienvenido al Motor de Extracción</h4>
+        <p style='color: #cbd5e1; font-size: 0.9rem;'>Siga los pasos para procesar datos de forma masiva y exportarlos limpios.</p>
+    </div>
+""", unsafe_allow_html=True)
+
+col_p1, col_p2, col_p3 = st.columns(3)
+with col_p1: st.info("1️⃣ **Inyección**: Cargue URLs.")
+with col_p2: st.info("2️⃣ **Rastreo**: Extraiga datos.")
+with col_p3: st.info("3️⃣ **Dataset**: Exporte a Excel/CSV.")
+st.write("---")
+
+# Consola Operativa
 col_in, col_opt = st.columns([2, 1])
 with col_in:
     urls_input = st.text_area("📋 Inyectar URLs (una por línea):", height=150, placeholder="https://ejemplo.com")
@@ -92,9 +114,9 @@ with col_opt:
     st.markdown("🎯 **Objetivos de Análisis**")
     c_mail = st.checkbox("Extraer Emails", value=True)
     c_tel = st.checkbox("Extraer Teléfonos", value=True)
-    c_ssl = st.checkbox("Verificar SSL/Seguridad", value=True)
+    c_ssl = st.checkbox("Verificar SSL", value=True)
 
-# --- BOTONES DE ACCIÓN (UBICACIÓN SOLICITADA) ---
+# Botones agrupados
 if st.button("⚡ EJECUTAR ESCANEO DE PRECISIÓN", use_container_width=True):
     urls = [u.strip() for u in urls_input.split('\n') if u.strip().startswith('http')]
     puede_operar = is_admin or (user_data['credits'] >= len(urls))
@@ -128,7 +150,6 @@ if st.button("⚡ EJECUTAR ESCANEO DE PRECISIÓN", use_container_width=True):
         st.session_state.last_run = results
         st.rerun()
 
-# Botón de Limpiar reubicado debajo del escaneo
 st.markdown('<div class="clear-btn">', unsafe_allow_html=True)
 if st.button("🧹 LIMPIAR CONSULTA", use_container_width=True):
     st.session_state.last_run = []
@@ -142,22 +163,20 @@ if st.session_state.last_run:
     
     df = pd.DataFrame(st.session_state.last_run)
 
-    # Lógica de descarga multiformato
     col_dl1, col_dl2 = st.columns(2)
     
     with col_dl1:
-        # Excel: Formato ideal para lectura limpia
+        # Excel: Requiere 'xlsxwriter' en requirements.txt
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
             df.to_excel(writer, index=False, sheet_name='Extracción')
         st.download_button("📥 DESCARGAR EXCEL (.xlsx)", buffer, "reporte_datasocio.xlsx", "application/vnd.ms-excel", use_container_width=True)
 
     with col_dl2:
-        # CSV: Usamos punto y coma (;) para que Excel lo abra bien en español automáticamente
+        # CSV: Punto y coma para Excel Español
         csv = df.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
         st.download_button("📥 DESCARGAR CSV (.csv)", csv, "reporte_datasocio.csv", "text/csv", use_container_width=True)
 
-    # Visualización en Tarjetas
     for r in st.session_state.last_run:
         if "Error" in r:
             st.error(f"❌ {r['URL']} - Error de conexión.")
@@ -175,4 +194,4 @@ if st.session_state.last_run:
             """, unsafe_allow_html=True)
 
 st.write("---")
-st.caption("DataSocio Engine v14.0 | Paso del Rey | Pro-Format Enabled")
+st.caption("DataSocio Engine v15.0 | Diseño UI/UX Mobile First")
