@@ -6,6 +6,7 @@ import re
 import hashlib
 import io
 from tinydb import TinyDB, Query
+from fpdf import FPDF
 
 # --- CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="DataSocio Pro | Intelligence", page_icon="⚡", layout="wide")
@@ -17,19 +18,15 @@ st.markdown("""
     
     html, body, [class*="css"] { font-family: 'Inter', sans-serif; background-color: var(--bg); }
     
-    /* Login Minimalista */
     .login-header {
         text-align: center; margin-bottom: 2rem; padding: 2rem;
         background: var(--card); border-radius: 15px; border: 1px solid #334155;
     }
-
-    /* Prólogo Interno */
     .prologo-section {
         background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
         padding: 1.5rem; border-radius: 15px; border: 1px solid #334155;
         margin-bottom: 2rem;
     }
-
     .stButton button { border-radius: 8px !important; font-weight: bold; }
     .logout-btn button { background-color: var(--danger) !important; color: white !important; }
     .clear-btn button { background-color: #475569 !important; color: white !important; margin-top: 5px; }
@@ -53,7 +50,7 @@ def hash_p(password): return hashlib.sha256(str.encode(password)).hexdigest()
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'last_run' not in st.session_state: st.session_state.last_run = []
 
-# --- PANTALLA DE LOGIN (MINIMALISTA Y DIRECTA) ---
+# --- PANTALLA DE LOGIN ---
 if not st.session_state.logged_in:
     st.markdown('<div class="login-header"><h1 style="color: #38bdf8;">DataSocio OS</h1><p style="color:#94a3b8;">Acceso Restringido</p></div>', unsafe_allow_html=True)
     _, col_login, _ = st.columns([1, 1, 1])
@@ -69,7 +66,7 @@ if not st.session_state.logged_in:
             else: st.error("Acceso denegado. Verifique credenciales.")
     st.stop()
 
-# --- VALIDACIÓN DE USUARIO (MODO DIOS) ---
+# --- VALIDACIÓN DE USUARIO ---
 user_data = db.search(User.username == st.session_state.user_now)[0]
 is_admin = (st.session_state.user_now == "Cabecha305")
 
@@ -88,10 +85,9 @@ with st.sidebar:
         st.markdown(f"### 👤 `Operador: {st.session_state.user_now}`")
         st.metric("CRÉDITOS", user_data['credits'])
 
-# --- PANEL CENTRAL (CON PRÓLOGO INCLUIDO) ---
+# --- PANEL CENTRAL ---
 st.title("🛠️ Consola de Inteligencia")
 
-# El Prólogo ahora vive aquí adentro
 st.markdown("""
     <div class="prologo-section">
         <h4 style='color: #38bdf8; margin-top:0;'>Bienvenido al Motor de Extracción</h4>
@@ -102,10 +98,9 @@ st.markdown("""
 col_p1, col_p2, col_p3 = st.columns(3)
 with col_p1: st.info("1️⃣ **Inyección**: Cargue URLs.")
 with col_p2: st.info("2️⃣ **Rastreo**: Extraiga datos.")
-with col_p3: st.info("3️⃣ **Dataset**: Exporte a Excel/CSV.")
+with col_p3: st.info("3️⃣ **Dataset**: Exporte en múltiples formatos.")
 st.write("---")
 
-# Consola Operativa
 col_in, col_opt = st.columns([2, 1])
 with col_in:
     urls_input = st.text_area("📋 Inyectar URLs (una por línea):", height=150, placeholder="https://ejemplo.com")
@@ -116,7 +111,6 @@ with col_opt:
     c_tel = st.checkbox("Extraer Teléfonos", value=True)
     c_ssl = st.checkbox("Verificar SSL", value=True)
 
-# Botones agrupados
 if st.button("⚡ EJECUTAR ESCANEO DE PRECISIÓN", use_container_width=True):
     urls = [u.strip() for u in urls_input.split('\n') if u.strip().startswith('http')]
     puede_operar = is_admin or (user_data['credits'] >= len(urls))
@@ -156,27 +150,69 @@ if st.button("🧹 LIMPIAR CONSULTA", use_container_width=True):
     st.rerun()
 st.markdown('</div>', unsafe_allow_html=True)
 
-# --- RENDERIZADO Y DESCARGA PROFESIONAL ---
+# --- GENERADOR DE PDF ---
+def generar_pdf(datos):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, "DataSocio OS - Reporte de Inteligencia", ln=True, align='C')
+    pdf.ln(10)
+    
+    for r in datos:
+        if "Error" in r: continue
+        pdf.set_font("Arial", 'B', 11)
+        pdf.cell(0, 8, f"URL: {r['URL']} ({r['Seguridad']})", ln=True)
+        pdf.set_font("Arial", '', 10)
+        pdf.multi_cell(0, 6, f"Emails: {r.get('Emails', 'Ninguno')}")
+        pdf.multi_cell(0, 6, f"Teléfonos: {r.get('Teléfonos', 'Ninguno')}")
+        pdf.ln(5)
+    
+    return bytes(pdf.output(dest='S').encode('latin1', 'replace'))
+
+# --- RENDERIZADO Y EXPORTACIÓN ---
 if st.session_state.last_run:
     st.write("---")
     st.subheader("💎 Inteligencia Obtenida")
     
-    df = pd.DataFrame(st.session_state.last_run)
+    # LÓGICA DE DESGLOSE (TIDY DATA) PARA EXCEL/CSV
+    export_list = []
+    for r in st.session_state.last_run:
+        if "Error" in r: continue
+        url = r['URL']
+        sec = r['Seguridad']
+        
+        ems = r.get('Emails', '').split(', ') if r.get('Emails') != 'Ninguno' else []
+        tls = r.get('Teléfonos', '').split(', ') if r.get('Teléfonos') != 'Ninguno' else []
+        
+        if not ems and not tls:
+            export_list.append({'URL': url, 'Seguridad': sec, 'Tipo': 'Sin Datos', 'Contacto': 'Ninguno'})
+        
+        for e in ems:
+            export_list.append({'URL': url, 'Seguridad': sec, 'Tipo': 'Email', 'Contacto': e})
+        for t in tls:
+            export_list.append({'URL': url, 'Seguridad': sec, 'Tipo': 'Teléfono', 'Contacto': t})
+            
+    df_export = pd.DataFrame(export_list)
 
-    col_dl1, col_dl2 = st.columns(2)
+    # BOTONES DE DESCARGA EN 3 COLUMNAS
+    col_dl1, col_dl2, col_dl3 = st.columns(3)
     
     with col_dl1:
-        # Excel: Requiere 'xlsxwriter' en requirements.txt
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='Extracción')
-        st.download_button("📥 DESCARGAR EXCEL (.xlsx)", buffer, "reporte_datasocio.xlsx", "application/vnd.ms-excel", use_container_width=True)
+            df_export.to_excel(writer, index=False, sheet_name='Contactos')
+        st.download_button("📥 EXCEL (.xlsx)", buffer, "contactos_datasocio.xlsx", "application/vnd.ms-excel", use_container_width=True)
 
     with col_dl2:
-        # CSV: Punto y coma para Excel Español
-        csv = df.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
-        st.download_button("📥 DESCARGAR CSV (.csv)", csv, "reporte_datasocio.csv", "text/csv", use_container_width=True)
+        csv = df_export.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+        st.download_button("📥 CSV (.csv)", csv, "contactos_datasocio.csv", "text/csv", use_container_width=True)
 
+    with col_dl3:
+        pdf_bytes = generar_pdf(st.session_state.last_run)
+        st.download_button("📥 PDF (.pdf)", pdf_bytes, "reporte_datasocio.pdf", "application/pdf", use_container_width=True)
+
+    st.write("---")
+    # VISTA PREVIA EN TARJETAS
     for r in st.session_state.last_run:
         if "Error" in r:
             st.error(f"❌ {r['URL']} - Error de conexión.")
@@ -194,4 +230,4 @@ if st.session_state.last_run:
             """, unsafe_allow_html=True)
 
 st.write("---")
-st.caption("DataSocio Engine v15.0 | Diseño UI/UX Mobile First")
+st.caption("DataSocio Engine v16.0 | Tidy Data & PDF Export")
