@@ -7,134 +7,121 @@ import hashlib
 import io
 from tinydb import TinyDB, Query
 
-# --- CONFIGURACIÓN DE IDENTIDAD ---
+# --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="DataSocio Intelligence OS", page_icon="⚡", layout="wide")
 
-# --- DISEÑO UI PRO ---
+# Diseño UI Dark Premium
 st.markdown("""
     <style>
-    :root { --primary: #38bdf8; --bg: #0f172a; }
-    .res-card { background: #1e293b; padding: 15px; border-radius: 12px; border-left: 5px solid var(--primary); margin-bottom: 10px; }
-    .stButton button { border-radius: 8px !important; font-weight: bold; width: 100%; }
+    :root { --primary: #38bdf8; --bg: #0f172a; --card: #1e293b; }
+    html, body, [class*="css"] { background-color: var(--bg); color: white; }
+    .stButton button { border-radius: 8px !important; font-weight: bold; background: #38bdf8; color: black; transition: 0.3s; }
+    .stButton button:hover { background: #0ea5e9; transform: scale(1.02); }
+    .price-card { 
+        background: var(--card); padding: 25px; border-radius: 15px; 
+        border: 1px solid #334155; text-align: center; height: 100%;
+    }
+    .price-card h3 { color: #38bdf8; margin-bottom: 10px; }
+    .price-tag { font-size: 2rem; font-weight: bold; margin: 15px 0; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- BASE DE DATOS Y SEGURIDAD ---
+# --- BASE DE DATOS ---
 db = TinyDB('usuarios_db.json')
 User = Query()
+def hash_p(p): return hashlib.sha256(str.encode(p)).hexdigest()
 
-def hash_p(p): 
-    return hashlib.sha256(str.encode(p)).hexdigest()
-
-# 🔥 SOLUCIÓN DEFINITIVA: Auto-creación del Admin si la base está vacía
+# Auto-Admin
 if len(db.all()) == 0:
-    db.insert({
-        'username': 'Cabecha305',
-        'password': hash_p('Catonas305!'),
-        'credits': 999999,
-        'plan': 'Admin'
-    })
+    db.insert({'username': 'Cabecha305', 'password': hash_p('Catonas305!'), 'credits': 999999, 'plan': 'Admin'})
 
-# --- ESTADO DE SESIÓN ---
-if 'logged_in' not in st.session_state: 
-    st.session_state.logged_in = False
-if 'last_run' not in st.session_state: 
-    st.session_state.last_run = []
+if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 
-# --- INTERFAZ DE LOGIN ---
+# --- LOGIN ---
 if not st.session_state.logged_in:
     st.markdown("<h1 style='text-align:center;'>⚡ DataSocio Pro</h1>", unsafe_allow_html=True)
-    with st.container():
-        _, col, _ = st.columns([1,1.2,1])
-        with col:
-            u = st.text_input("Operador Autorizado").strip()
-            p = st.text_input("Código de Acceso", type="password").strip()
-            if st.button("ACCEDER AL SISTEMA"):
-                res = db.search(User.username == u)
-                if res and res[0]['password'] == hash_p(p):
-                    st.session_state.logged_in = True
-                    st.session_state.user_now = u
-                    st.rerun()
-                else: 
-                    st.error("Acceso denegado. Verifique credenciales.")
+    _, col, _ = st.columns([1,1.2,1])
+    with col:
+        u = st.text_input("Operador").strip()
+        p = st.text_input("Acceso", type="password").strip()
+        if st.button("ACCEDER"):
+            res = db.search(User.username == u)
+            if res and res[0]['password'] == hash_p(p):
+                st.session_state.logged_in, st.session_state.user_now = True, u
+                st.rerun()
     st.stop()
 
-# --- PANEL PRINCIPAL (Solo si está logueado) ---
-user_data = db.search(User.username == st.session_state.user_now)[0]
+# Datos del usuario logueado
+current_user = db.search(User.username == st.session_state.user_now)[0]
 is_admin = (st.session_state.user_now == "Cabecha305")
 
+# --- SIDEBAR ---
 with st.sidebar:
     st.title("DataSocio OS")
-    menu = st.radio("Módulos", ["🔍 Inteligencia", "💎 Suscripción"])
+    menu = st.radio("Módulos", ["🔍 Inteligencia", "💎 Cargar Créditos"])
     st.write("---")
-    st.metric("Créditos", "Infinitos" if is_admin else user_data['credits'])
+    st.metric("CRÉDITOS DISPONIBLES", "∞" if is_admin else current_user['credits'])
     if st.button("Cerrar Sesión"):
         st.session_state.logged_in = False
         st.rerun()
 
-# --- MÓDULO INTELIGENCIA ---
+# --- MÓDULO: INTELIGENCIA ---
 if menu == "🔍 Inteligencia":
-    st.subheader("Extracción de Datos de Precisión")
-    urls_input = st.text_area("Ingrese URLs (una por línea):", height=150, placeholder="https://ejemplo.com")
+    st.title("Extracción de Datos de Precisión")
+    urls_input = st.text_area("URLs a escanear (una por línea):", height=200)
     
     if st.button("🚀 INICIAR ESCANEO"):
         urls = [u.strip() for u in urls_input.split('\n') if u.strip().startswith('http')]
-        if not urls:
-            st.warning("Por favor, ingrese URLs válidas que comiencen con http o https.")
-        else:
+        if not is_admin and len(urls) > current_user['credits']:
+            st.error("Créditos insuficientes para esta cantidad de URLs.")
+        elif urls:
             results = []
-            progress_bar = st.progress(0)
-            
+            bar = st.progress(0)
             for i, url in enumerate(urls):
                 try:
-                    # Descuento de créditos (solo para no-admins)
                     if not is_admin:
-                        db.update({'credits': user_data['credits'] - 1}, User.username == st.session_state.user_now)
+                        db.update({'credits': current_user['credits'] - 1}, User.username == st.session_state.user_now)
                     
-                    response = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    text_content = soup.get_text()
-                    html_content = response.text
-                    
-                    # Extracción optimizada
-                    emails = list(set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text_content)))
-                    whatsapp = list(set(re.findall(r'wa\.me/(\d+)', html_content) + re.findall(r'whatsapp\.com/send\?phone=(\d+)', html_content)))
-                    instagram = list(set(re.findall(r'instagram\.com/([^/?"\s>]+)', html_content)))
-                    
+                    r = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+                    soup = BeautifulSoup(r.text, 'html.parser')
+                    t = soup.get_text()
                     results.append({
                         "URL": url,
-                        "Emails": emails,
-                        "WhatsApp": whatsapp,
-                        "Instagram": instagram
+                        "WhatsApp": list(set(re.findall(r'wa\.me/(\d+)', r.text))),
+                        "Instagram": list(set(re.findall(r'instagram\.com/([^/?"\s>]+)', r.text))),
+                        "Emails": list(set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', t)))
                     })
-                except Exception as e:
-                    results.append({"URL": url, "Error": "Inalcanzable u ocurrió un error"})
-                
-                progress_bar.progress((i + 1) / len(urls))
+                except: results.append({"URL": url, "Error": "Inalcanzable"})
+                bar.progress((i + 1) / len(urls))
             
-            st.session_state.last_run = results
-            st.success(f"Escaneo finalizado: {len(urls)} URLs procesadas.")
+            df = pd.DataFrame(results)
+            st.dataframe(df, use_container_width=True)
+            st.download_button("📥 Descargar CSV", df.to_csv(index=False).encode('utf-8-sig'), "data.csv")
 
-    # Visualización y Exportación de Resultados
-    if st.session_state.last_run:
-        df = pd.DataFrame(st.session_state.last_run)
-        st.dataframe(df)
-        
-        col1, col2 = st.columns(2)
-        
-        # Botón CSV
-        csv_data = df.to_csv(index=False).encode('utf-8-sig')
-        col1.download_button("📥 Descargar Reporte (CSV)", csv_data, "reporte_datasocio.csv", "text/csv")
-        
-        # Botón Excel (Manejo de errores si xlsxwriter falla)
-        try:
-            excel_buffer = io.BytesIO()
-            with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
-                df.to_excel(writer, index=False)
-            col2.download_button("📥 Descargar Reporte (Excel)", excel_buffer.getvalue(), "reporte_datasocio.xlsx")
-        except:
-            col2.info("Exportación a Excel no disponible en este entorno. Utilice CSV.")
-
-elif menu == "💎 Suscripción":
-    st.title("Planes y Créditos")
-    st.info("Módulo de integración con Naranja X / Mobbex en desarrollo.")
+# --- MÓDULO: CARGAR CRÉDITOS (AUTOMÁTICO) ---
+elif menu == "💎 Cargar Créditos":
+    st.title("Carga Automática de Créditos")
+    st.write("Seleccioná un pack. Los créditos se acreditarán al instante después del pago.")
+    
+    c1, c2, c3 = st.columns(3)
+    
+    packs = [
+        {"id": "p1", "name": "Pack Bronce", "creds": 500, "price": 2500},
+        {"id": "p2", "name": "Pack Plata", "creds": 2000, "price": 8000},
+        {"id": "p3", "name": "Pack Oro", "creds": 10000, "price": 30000},
+    ]
+    
+    for i, col in enumerate([c1, c2, c3]):
+        with col:
+            st.markdown(f"""
+            <div class="price-card">
+                <h3>{packs[i]['name']}</h3>
+                <div class="price-tag">${packs[i]['price']}</div>
+                <p><b>{packs[i]['creds']}</b> Créditos</p>
+                <p><small>Acreditación Instantánea</small></p>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button(f"Comprar {packs[i]['creds']} CR", key=packs[i]['id']):
+                st.info("Generando link de pago seguro...")
+                # Aquí irá la URL de Mobbex una vez creada la cuenta
+                st.link_button("🚀 PAGAR AHORA", "https://mobbex.com/p/checkout/ejemplo")
