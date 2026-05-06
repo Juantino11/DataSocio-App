@@ -4,116 +4,152 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import time
+import hashlib
+from tinydb import TinyDB, Query
 
-# 1. Configuración de la página
-st.set_page_config(page_title="DataSocio Monetizer | Pro Edition", page_icon="💰", layout="wide")
+# --- CONFIGURACIÓN Y ESTILO ---
+st.set_page_config(page_title="DataSocio OS | Intelligence Suite", page_icon="🌐", layout="wide")
 
-# Estilo de Interfaz Premium (Negro y Dorado/Verde)
+# CSS para un look de plataforma SaaS Profesional
 st.markdown("""
     <style>
-    .stApp { background-color: #0a0a0a; color: #d4af37; } /* Dorado sobre negro */
-    .stTextArea textarea { background-color: #1a1a1a; color: #00ff41; border: 1px solid #d4af37; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+    html, body, [class*="css"]  { font-family: 'Inter', sans-serif; }
+    .stApp { background-color: #0f172a; color: #f8fafc; }
+    .main-card {
+        background: #1e293b;
+        padding: 2rem;
+        border-radius: 15px;
+        border: 1px solid #334155;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
     .stButton>button {
-        background: linear-gradient(90deg, #d4af37, #f9e29b);
-        color: black; font-weight: bold; border-radius: 5px; border: none;
+        background: linear-gradient(135deg, #38bdf8, #1d4ed8);
+        color: white; border: none; padding: 0.75rem; border-radius: 8px;
+        font-weight: bold; width: 100%; transition: all 0.3s;
     }
-    .payment-card {
-        background-color: #1a1a1a;
-        padding: 20px;
-        border-radius: 10px;
-        border: 1px solid #d4af37;
-        margin-bottom: 10px;
-    }
+    .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(56, 189, 248, 0.4); }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Lógica de Créditos (Simulada para el prototipo)
-if 'user_credits' not in st.session_state:
-    st.session_state.user_credits = 5  # Créditos iniciales de regalo
+# --- BASE DE DATOS ---
+db = TinyDB('usuarios_db.json')
+User = Query()
 
-# 3. Barra Lateral: TIENDA DE CRÉDITOS
-with st.sidebar:
-    st.title("💰 CENTRO DE PAGOS")
-    st.metric(label="Tus Créditos Actuales", value=st.session_state.user_credits)
-    
-    st.write("---")
-    st.subheader("Obtener más Poder")
-    
-    # Opción 1: Pack Básico
-    st.markdown('<div class="payment-card"><b>Pack Starter</b><br>50 Consultas<br><b>$9.99 USD</b></div>', unsafe_allow_html=True)
-    if st.button("Comprar 50 Créditos"):
-        # Aquí pondrías el link real de Stripe: st.write("Redirigiendo a Stripe...")
-        st.success("Redirigiendo a pasarela segura...")
-        time.sleep(1)
-        st.session_state.user_credits += 50 # Simulación de compra exitosa
-    
-    # Opción 2: Pack Pro
-    st.markdown('<div class="payment-card"><b>Pack Business</b><br>500 Consultas<br><b>$39.99 USD</b></div>', unsafe_allow_html=True)
-    if st.button("Comprar 500 Créditos"):
-        st.success("Redirigiendo a PayPal...")
-        time.sleep(1)
-        st.session_state.user_credits += 500
+def hash_p(password): return hashlib.sha256(str.encode(password)).hexdigest()
 
-    st.write("---")
-    st.caption("Pagos procesados por Stripe®")
+# --- LÓGICA DE SESIÓN ---
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.user_now = None
 
-# 4. Cuerpo Principal
-st.title("💎 DATASOCIO MONETIZER")
-st.write("Extrae activos de alto valor. Cada consulta consume 1 crédito.")
-
-if st.session_state.user_credits <= 0:
-    st.error("❌ Te has quedado sin créditos. Por favor, adquiere un pack en la barra lateral.")
-else:
-    urls_input = st.text_area("📋 Lista de objetivos (URLs):", height=100)
-
-    if st.button("🔥 EJECUTAR EXTRACCIÓN MAESTRA"):
-        lista_urls = [url.strip() for url in urls_input.split('\n') if url.strip().startswith('http')]
+# --- AUTH UI ---
+if not st.session_state.logged_in:
+    _, col, _ = st.columns([1, 1.5, 1])
+    with col:
+        st.title("🌐 DataSocio OS")
+        st.write("Bienvenido a la suite de inteligencia de datos.")
+        mode = st.radio("Acceso", ["Ingresar", "Registrarse"], horizontal=True)
         
-        if not lista_urls:
-            st.warning("Introduce objetivos válidos.")
-        elif len(lista_urls) > st.session_state.user_credits:
-            st.error(f"No tienes suficientes créditos para {len(lista_urls)} URLs. Tienes {st.session_state.user_credits}.")
+        u = st.text_input("Usuario")
+        p = st.text_input("Contraseña", type="password")
+        
+        if mode == "Ingresar" and st.button("Acceder al Sistema"):
+            res = db.search(User.username == u)
+            if res and res[0]['password'] == hash_p(p):
+                st.session_state.logged_in = True
+                st.session_state.user_now = u
+                st.rerun()
+            else: st.error("Acceso denegado")
+        
+        if mode == "Registrarse" and st.button("Crear Nueva Cuenta"):
+            if not db.search(User.username == u):
+                db.insert({'username': u, 'password': hash_p(p), 'credits': 10})
+                st.success("Cuenta creada. Ya puedes ingresar.")
+            else: st.error("El usuario ya existe")
+    st.stop()
+
+# --- PANEL DE CONTROL (LOGUEADO) ---
+user_rec = db.search(User.username == st.session_state.user_now)[0]
+
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/2103/2103633.png", width=80)
+    st.title(st.session_state.user_now)
+    st.metric("CRÉDITOS", user_rec['credits'])
+    
+    st.write("---")
+    st.write("💎 **UPGRADE PLAN**")
+    if st.button("Cargar 500 Créditos"):
+        db.update({'credits': user_rec['credits'] + 500}, User.username == st.session_state.user_now)
+        st.rerun()
+    
+    if st.button("🚪 Cerrar Sesión"):
+        st.session_state.logged_in = False
+        st.rerun()
+
+# --- INTERFAZ OPERATIVA ---
+st.title("🚀 Intelligence Console")
+st.write("Sustracción y análisis de activos en tiempo real.")
+
+with st.container():
+    st.markdown('<div class="main-card">', unsafe_allow_html=True)
+    urls_input = st.text_area("📋 Inserte objetivos (URLs separadas por línea):", height=150, help="El sistema procesará cada enlace de forma individual.")
+    
+    c1, c2, c3 = st.columns(3)
+    with c1: deep_scan = st.checkbox("Escaneo Profundo (Emails/Tels)", value=True)
+    with c2: social_scan = st.checkbox("Rastreo de Redes", value=True)
+    with c3: sentiment_analysis = st.checkbox("Análisis de Sentimiento", value=True)
+    
+    if st.button("⚡ INICIAR OPERACIÓN DE EXTRACCIÓN"):
+        urls = [u.strip() for u in urls_input.split('\n') if u.strip().startswith('http')]
+        
+        if not urls:
+            st.warning("Ingrese al menos una URL válida.")
+        elif len(urls) > user_rec['credits']:
+            st.error("Créditos insuficientes.")
         else:
-            all_data = []
-            progreso = st.progress(0)
+            final_results = []
+            progress_bar = st.progress(0)
             
-            for idx, url in enumerate(lista_urls):
+            for i, url in enumerate(urls):
                 try:
-                    # Descontar crédito por cada URL procesada
-                    st.session_state.user_credits -= 1
+                    db.update({'credits': user_rec['credits'] - 1}, User.username == st.session_state.user_now)
+                    r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                    soup = BeautifulSoup(r.text, 'html.parser')
+                    text = soup.get_text()
                     
-                    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0'}
-                    response = requests.get(url, headers=headers, timeout=10)
+                    # Inteligencia de Datos
+                    emails = list(set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)))
+                    tels = list(set(re.findall(r'\+?\d{10,13}', text)))
                     
-                    if response.status_code == 200:
-                        soup = BeautifulSoup(response.text, 'html.parser')
-                        texto = soup.get_text()
-                        links = [a['href'] for a in soup.find_all('a', href=True)]
-                        
-                        # Extracción rápida
-                        whatsapp = list(set(re.findall(r'\+?\d{10,13}', texto) + [l for l in links if "wa.me" in l]))
-                        emails = list(set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', texto)))
-                        prices = list(set(re.findall(r'[\$\€]\s?\d+(?:[\.,]\d+)?', texto)))
+                    # Análisis de Sentimiento Básico (Detección de Palabras Clave)
+                    score = "Neutral"
+                    if sentiment_analysis:
+                        pos = ['excelente', 'mejor', 'increíble', 'servicio', 'calidad', 'garantía']
+                        neg = ['malo', 'pobre', 'error', 'falla', 'queja', 'caro']
+                        p_count = sum(1 for w in pos if w in text.lower())
+                        n_count = sum(1 for w in neg if w in text.lower())
+                        if p_count > n_count: score = "Positivo"
+                        elif n_count > p_count: score = "Negativo"
 
-                        all_data.append({
-                            "URL": url,
-                            "WhatsApp/Tel": ", ".join(whatsapp[:3]),
-                            "Emails": ", ".join(emails[:3]),
-                            "Precios": ", ".join(prices[:3])
-                        })
-                    
-                    progreso.progress(int((idx + 1) / len(lista_urls) * 100))
-                    
-                except Exception as e:
-                    st.error(f"Error en {url}")
+                    final_results.append({
+                        "Objetivo": url,
+                        "Emails": ", ".join(emails[:3]),
+                        "Teléfonos": ", ".join(tels[:3]),
+                        "Sentimiento": score,
+                        "Status": "Completado"
+                    })
+                    progress_bar.progress((i+1)/len(urls))
+                except:
+                    final_results.append({"Objetivo": url, "Status": "Fallo de conexión"})
 
-            if all_data:
-                st.success(f"Extracción finalizada. Créditos restantes: {st.session_state.user_credits}")
-                st.dataframe(pd.DataFrame(all_data), use_container_width=True)
-                
-                csv = pd.DataFrame(all_data).to_csv(index=False).encode('utf-8')
-                st.download_button("📥 DESCARGAR ACTIVOS", csv, "extraccion_paga.csv", "text/csv")
+            st.success("Operación finalizada.")
+            df = pd.DataFrame(final_results)
+            st.table(df) # Presentación más limpia
+            
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Exportar Inteligencia (CSV)", csv, "intelligence_report.csv", "text/csv")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. Footer Técnico
 st.write("---")
-st.caption("Infraestructura: i5 / Win 11 | Secure Payment Protocol Enabled")
+st.caption(f"DataSocio Engine v7.0 | {st.session_state.user_now} | i5 Win11 Node")
