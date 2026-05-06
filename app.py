@@ -9,43 +9,37 @@ from io import BytesIO
 from tinydb import TinyDB, Query
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="DataSocio OS | Acceso", page_icon="📈", layout="wide")
+st.set_page_config(page_title="DataSocio OS | Elite Intelligence", page_icon="⚡", layout="wide")
 
-# CSS para el nuevo orden
+# CSS para darle vida y monetizar
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     .stApp { background-color: #0f172a; color: #f8fafc; }
     
-    .hero-container {
-        text-align: center;
-        padding: 1.5rem 1rem;
-        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    /* Banners y Publicidad */
+    .ad-banner {
+        background: linear-gradient(90deg, #1e293b, #334155);
+        padding: 10px; border-radius: 10px; border: 1px dashed #38bdf8;
+        text-align: center; margin-bottom: 20px; font-size: 0.8rem; color: #94a3b8;
     }
     
-    .auth-card {
-        background: #1e293b;
-        padding: 2rem;
-        border-radius: 20px;
-        border: 1px solid #38bdf8;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
-        margin-bottom: 3rem;
-    }
-
-    .feature-box {
-        background: #1e293b;
-        padding: 1.2rem;
-        border-radius: 12px;
-        border-top: 3px solid #38bdf8;
-        text-align: center;
-        height: 100%;
-        font-size: 0.9rem;
+    /* Panel de Control */
+    .op-card {
+        background: #1e293b; padding: 2rem; border-radius: 15px;
+        border: 1px solid #1e4ed8; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     }
     
+    /* Botones Premium */
     .stButton>button {
         background: linear-gradient(90deg, #38bdf8, #1d4ed8);
-        color: white; border: none; font-weight: bold; border-radius: 8px;
+        color: white; border: none; font-weight: bold; border-radius: 8px; width: 100%;
+    }
+    .pay-button {
+        display: inline-block; padding: 10px 20px; background: #10b981;
+        color: white; text-decoration: none; border-radius: 8px; font-weight: bold;
+        text-align: center; width: 100%; margin-top: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -59,112 +53,124 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user_now = None
 
-# --- PANTALLA DE INICIO (ORDEN INVERTIDO) ---
+# --- LÓGICA DE ACCESO (PANTALLA DE INICIO) ---
 if not st.session_state.logged_in:
-    # 1. TÍTULO
-    st.markdown("""
-        <div class="hero-container">
-            <h1 style='color: #38bdf8; font-size: 3rem; margin-bottom: 1rem;'>DataSocio Intelligence OS</h1>
-        </div>
-    """, unsafe_allow_html=True)
-
-    # 2. LOGIN AL CENTRO (PRIMERO)
-    _, col_auth, _ = st.columns([1, 1.5, 1])
+    st.markdown("<h1 style='text-align:center; color:#38bdf8;'>DataSocio Intelligence OS</h1>", unsafe_allow_html=True)
+    
+    _, col_auth, _ = st.columns([1, 1.3, 1])
     with col_auth:
-        st.markdown('<div class="auth-card">', unsafe_allow_html=True)
-        st.subheader("🔐 Acceso al Sistema")
-        mode = st.radio("Acción:", ["Ingresar", "Registrarse"], horizontal=True)
+        mode = st.radio("Socio, elige tu entrada:", ["Ingresar", "Registrarse"], horizontal=True)
+        u = st.text_input("Usuario")
+        p = st.text_input("Contraseña", type="password")
         
-        u = st.text_input("Usuario", placeholder="Tu usuario")
-        p = st.text_input("Contraseña", type="password", placeholder="••••••••")
+        if mode == "Ingresar" and st.button("ACCEDER AL COMANDO"):
+            res = db.search(User.username == u)
+            if res and res[0]['password'] == hash_p(p):
+                st.session_state.logged_in = True
+                st.session_state.user_now = u
+                st.rerun()
+            else: st.error("Acceso denegado.")
         
-        if mode == "Ingresar":
-            if st.button("🚀 ENTRAR AHORA"):
-                res = db.search(User.username == u)
-                if res and res[0]['password'] == hash_p(p):
-                    st.session_state.logged_in = True
-                    st.session_state.user_now = u
-                    st.rerun()
-                else: st.error("Credenciales incorrectas.")
-        else:
-            if st.button("🎁 CREAR CUENTA"):
-                if not db.search(User.username == u):
-                    db.insert({'username': u, 'password': hash_p(p), 'credits': 10})
-                    st.success("¡Cuenta lista! Ingresa ahora.")
-                else: st.error("El usuario ya existe.")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # 3. PRÓLOGO/BENEFICIOS (ABAJO)
-    st.write("---")
-    st.markdown("<p style='text-align: center; color: #94a3b8;'>¿Qué podés hacer con nuestra Suite?</p>", unsafe_allow_html=True)
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
-        st.markdown('<div class="feature-box"><h3>🔍 Extracción</h3><p>Obtené Emails y WhatsApp de cualquier sitio web en segundos.</p></div>', unsafe_allow_html=True)
-    with col_b:
-        st.markdown('<div class="feature-box"><h3>🧠 Análisis</h3><p>IA que detecta automáticamente la reputación del objetivo.</p></div>', unsafe_allow_html=True)
-    with col_c:
-        st.markdown('<div class="feature-box"><h3>📊 Reportes</h3><p>Exportá tus resultados a un Excel profesional listo para usar.</p></div>', unsafe_allow_html=True)
+        if mode == "Registrarse" and st.button("UNIRSE A LA RED"):
+            if not db.search(User.username == u):
+                db.insert({'username': u, 'password': hash_p(p), 'credits': 10})
+                st.success("¡Bienvenido! Ya podés ingresar.")
+            else: st.error("Usuario ya registrado.")
     st.stop()
 
-# --- PANEL OPERATIVO (UNA VEZ LOGUEADO) ---
+# --- INTERFAZ OPERATIVA (USUARIO LOGUEADO) ---
 user_rec = db.search(User.username == st.session_state.user_now)[0]
 
+# --- SIDEBAR MONETIZADA ---
 with st.sidebar:
-    st.title(f"👤 {st.session_state.user_now}")
-    st.metric("CRÉDITOS", user_rec['credits'])
+    st.markdown(f"### 👤 {st.session_state.user_now}")
+    st.metric("CRÉDITOS DISPONIBLES", user_rec['credits'])
+    
+    st.markdown("---")
+    st.markdown("### 💎 PLAN PREMIUM")
+    st.write("¿Te quedaste sin créditos? Potenciá tu alcance.")
+    # ENLACE DE PAGO (Aquí podrías poner tu link de Mercado Pago o PayPal)
+    st.markdown('<a href="https://tu-enlace-de-pago.com" target="_blank" class="pay-button">💳 COMPRAR 100 CRÉDITOS</a>', unsafe_allow_html=True)
+    
+    st.write("")
     if st.button("Cerrar Sesión"):
         st.session_state.logged_in = False
         st.rerun()
-
-st.title("🚀 Consola Operativa")
-urls_input = st.text_area("📋 URLs a investigar:", height=150)
-
-if st.button("⚡ EJECUTAR INTELIGENCIA"):
-    urls = [u.strip() for u in urls_input.split('\n') if u.strip().startswith('http')]
     
-    if not urls:
-        st.warning("Ingrese URLs.")
-    elif len(urls) > user_rec['credits']:
-        st.error("Créditos insuficientes.")
-    else:
-        results = []
-        bar = st.progress(0)
-        
-        for i, url in enumerate(urls):
-            try:
-                db.update({'credits': user_rec['credits'] - 1}, User.username == st.session_state.user_now)
-                r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
-                soup = BeautifulSoup(r.text, 'html.parser')
-                text = soup.get_text()
-                
-                emails = list(set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)))
-                tels = list(set(re.findall(r'\+?\d{10,13}', text)))
-                
-                results.append({
-                    "URL": url,
-                    "Emails": ", ".join(emails),
-                    "Teléfonos": ", ".join(tels),
-                    "Sentimiento": "Positivo" if "excelente" in text.lower() else "Neutral"
-                })
-                bar.progress((i+1)/len(urls))
-            except:
-                results.append({"URL": url, "Emails": "Fallo", "Teléfonos": "-", "Sentimiento": "-"})
+    st.markdown("---")
+    st.write("💡 *Sugerencia: El análisis de sentimiento ahorra 2 horas de trabajo manual.*")
 
-        if results:
-            df = pd.DataFrame(results)
-            st.dataframe(df, use_container_width=True)
-            
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df.to_excel(writer, index=False, sheet_name='Leads')
-            
-            st.download_button(
-                label="📥 DESCARGAR EXCEL (.xlsx)",
-                data=output.getvalue(),
-                file_name=f"DataSocio_Report.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-            st.rerun()
+# --- CUERPO PRINCIPAL ---
+
+# Espacio para Publicidad (Top)
+st.markdown('<div class="ad-banner">🚀 ESPACIO PUBLICITARIO DISPONIBLE - Contacta con DataSocio para anunciar aquí 🚀</div>', unsafe_allow_html=True)
+
+st.title("⚡ Centro de Extracción de Datos")
+
+with st.container():
+    st.markdown('<div class="op-card">', unsafe_allow_html=True)
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        urls_input = st.text_area("📋 Inyectar URLs (una por línea):", height=150, placeholder="https://ejemplo.com.ar")
+    
+    with col2:
+        st.write("### ⚙️ Parámetros")
+        deep_scan = st.checkbox("Escaneo Profundo", value=True)
+        get_sentiment = st.checkbox("Analizar Reputación", value=True)
+        st.write("---")
+        if st.button("⚡ EJECUTAR OPERACIÓN"):
+            urls = [u.strip() for u in urls_input.split('\n') if u.strip().startswith('http')]
+            if not urls:
+                st.warning("⚠️ Sin objetivos válidos.")
+            elif len(urls) > user_rec['credits']:
+                st.error("❌ Créditos insuficientes.")
+            else:
+                results = []
+                bar = st.progress(0)
+                
+                for i, url in enumerate(urls):
+                    try:
+                        db.update({'credits': user_rec['credits'] - 1}, User.username == st.session_state.user_now)
+                        r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                        soup = BeautifulSoup(r.text, 'html.parser')
+                        text = soup.get_text()
+                        
+                        emails = list(set(re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)))
+                        tels = list(set(re.findall(r'\+?\d{10,13}', text)))
+                        
+                        results.append({
+                            "OBJETIVO": url,
+                            "CONTACTOS": f"📧 {len(emails)} | 📞 {len(tels)}",
+                            "EMAILS": ", ".join(emails),
+                            "REPUTACIÓN": "⭐ Positiva" if "excelente" in text.lower() else "⚖️ Neutral"
+                        })
+                        bar.progress((i+1)/len(urls))
+                    except:
+                        results.append({"OBJETIVO": url, "CONTACTOS": "Error", "EMAILS": "-", "REPUTACIÓN": "-"})
+
+                if results:
+                    st.session_state.last_results = results
+                    st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# --- RESULTADOS CON ESTILO ---
+if 'last_results' in st.session_state:
+    st.write("### 📊 Reporte de Inteligencia")
+    df = pd.DataFrame(st.session_state.last_results)
+    st.table(df) # Usamos tabla para que se vea más sólido
+    
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='DataSocio_Leads')
+    
+    st.download_button(
+        label="📥 EXPORTAR BASE DE DATOS PROFESIONAL",
+        data=output.getvalue(),
+        file_name=f"Reporte_Elite_{st.session_state.user_now}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 st.write("---")
-st.caption("DataSocio Engine v8.2 | Fast Access | i5 Win11")
+st.caption(f"DataSocio Engine v9.0 | Windows 11 i5 | Paso del Rey, Argentina")
